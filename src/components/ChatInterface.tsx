@@ -6,8 +6,8 @@ import MessageDisplay from './MessageDisplay';
 import NeonButton from './ui-elements/NeonButton';
 import SecretKeyInput from './SecretKeyInput';
 import HolographicCard from './ui-elements/HolographicCard';
-import GlitchText from './ui-elements/GlitchText';
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from '@/lib/supabase';
 
 interface Message {
   id: string;
@@ -15,17 +15,12 @@ interface Message {
   content: string;
   timestamp: string;
   isDecrypted: boolean;
+  room_key: string;
 }
 
 interface ChatInterfaceProps {
   initialSecretKey?: string;
 }
-
-// Simulated database of chat rooms
-const chatRooms: Record<string, Message[]> = {};
-
-// Active users in each room
-const activeUsers: Record<string, string[]> = {};
 
 // Generate a random username for this session
 const generateUsername = () => {
@@ -49,59 +44,166 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
   const [usersInRoom, setUsersInRoom] = useState<string[]>([]);
   const { toast } = useToast();
   
-  // Poll for new messages in the room
+  // Setup Supabase subscription when secret key changes
   useEffect(() => {
     if (!secretKey) return;
     
-    // Initialize room if it doesn't exist
-    if (!chatRooms[secretKey]) {
-      chatRooms[secretKey] = [];
-    }
+    // First, fetch existing messages for this room
+    const fetchMessages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('room_key', secretKey)
+          .order('timestamp', { ascending: true });
+        
+        if (error) {
+          console.error('Error fetching messages:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load messages. Please try again.",
+            variant: "destructive",
+          });
+        } else {
+          setMessages(data || []);
+        }
+      } catch (error) {
+        console.error('Fetch error:', error);
+      }
+    };
     
-    // Add welcome message if room is empty
-    if (chatRooms[secretKey].length === 0) {
-      const welcomeMessage = {
-        id: 'welcome',
-        sender: 'System',
-        content: encryptMessage("Welcome to SecretChat. Communications are encrypted.", secretKey),
-        timestamp: new Date().toLocaleTimeString(),
-        isDecrypted: false
-      };
-      chatRooms[secretKey].push(welcomeMessage);
-    }
+    fetchMessages();
     
-    // Add user to room
-    if (!activeUsers[secretKey]) {
-      activeUsers[secretKey] = [];
-    }
+    // Then subscribe to new messages
+    const subscription = supabase
+      .channel(`room_${secretKey}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `room_key=eq.${secretKey}`,
+      }, (payload) => {
+        // Add new message to state
+        setMessages(prevMessages => [...prevMessages, payload.new as Message]);
+      })
+      .subscribe();
     
-    if (!activeUsers[secretKey].includes(currentUser)) {
-      activeUsers[secretKey].push(currentUser);
-    }
+    // Add user presence
+    const addUserPresence = async () => {
+      try {
+        // Check if room exists
+        const { data: roomData } = await supabase
+          .from('rooms')
+          .select('*')
+          .eq('key', secretKey)
+          .single();
+        
+        if (!roomData) {
+          // Create room if it doesn't exist
+          await supabase
+            .from('rooms')
+            .insert({ key: secretKey, created_by: currentUser });
+        }
+        
+        // Add user to room users
+        await supabase
+          .from('room_users')
+          .upsert({ 
+            room_key: secretKey, 
+            username: currentUser, 
+            last_active: new Date().toISOString() 
+          });
+        
+        // Add join message
+        const joinMessage = {
+          id: crypto.randomUUID(),
+          sender: 'System',
+          content: encryptMessage(`${currentUser} has joined the chat.`, secretKey),
+          timestamp: new Date().toISOString(),
+          room_key: secretKey
+        };
+        
+        await supabase.from('messages').insert(joinMessage);
+      } catch (error) {
+        console.error('Error adding user presence:', error);
+      }
+    };
     
-    // Update local messages and users
-    setMessages([...chatRooms[secretKey]]);
-    setUsersInRoom([...activeUsers[secretKey]]);
+    addUserPresence();
     
-    // Set up polling interval to check for new messages
-    const interval = setInterval(() => {
-      setMessages([...chatRooms[secretKey]]);
-      setUsersInRoom([...activeUsers[secretKey]]);
-    }, 1000);
+    // Subscribe to room users
+    const userSubscription = supabase
+      .channel(`room_users_${secretKey}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'room_users',
+        filter: `room_key=eq.${secretKey}`,
+      }, () => {
+        // Fetch latest list of users
+        fetchRoomUsers();
+      })
+      .subscribe();
+    
+    // Fetch room users initially
+    const fetchRoomUsers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('room_users')
+          .select('username')
+          .eq('room_key', secretKey)
+          .gte('last_active', new Date(Date.now() - 5 * 60 * 1000).toISOString()); // Active in last 5 minutes
+        
+        if (error) {
+          console.error('Error fetching users:', error);
+        } else {
+          setUsersInRoom(data.map(user => user.username));
+        }
+      } catch (error) {
+        console.error('User fetch error:', error);
+      }
+    };
+    
+    fetchRoomUsers();
+    
+    // Update user's last active timestamp every minute
+    const keepAliveInterval = setInterval(async () => {
+      await supabase
+        .from('room_users')
+        .upsert({ 
+          room_key: secretKey, 
+          username: currentUser, 
+          last_active: new Date().toISOString() 
+        });
+    }, 60 * 1000);
     
     // Clean up when component unmounts or key changes
     return () => {
-      clearInterval(interval);
+      subscription.unsubscribe();
+      userSubscription.unsubscribe();
+      clearInterval(keepAliveInterval);
       
-      // Remove user from room when leaving
-      if (secretKey && activeUsers[secretKey]) {
-        const index = activeUsers[secretKey].indexOf(currentUser);
-        if (index !== -1) {
-          activeUsers[secretKey].splice(index, 1);
+      // Remove user from room
+      const removeUser = async () => {
+        try {
+          // Add leave message
+          const leaveMessage = {
+            id: crypto.randomUUID(),
+            sender: 'System',
+            content: encryptMessage(`${currentUser} has left the chat.`, secretKey),
+            timestamp: new Date().toISOString(),
+            room_key: secretKey
+          };
+          
+          await supabase.from('messages').insert(leaveMessage);
+        } catch (error) {
+          console.error('Error adding leave message:', error);
         }
-      }
+      };
+      
+      removeUser();
     };
-  }, [secretKey, currentUser]);
+  }, [secretKey, currentUser, toast]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -117,41 +219,42 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
       description: "Your secret key has been set. You can now send encrypted messages.",
       variant: "default",
     });
-    
-    // Join notification
-    const joinMessage = {
-      id: Date.now().toString(),
-      sender: 'System',
-      content: encryptMessage(`${currentUser} has joined the chat.`, key),
-      timestamp: new Date().toLocaleTimeString(),
-      isDecrypted: false
-    };
-    
-    if (!chatRooms[key]) {
-      chatRooms[key] = [];
-    }
-    
-    chatRooms[key].push(joinMessage);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && secretKey) {
       const encryptedContent = encryptMessage(message.trim(), secretKey);
       const newMessage = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         sender: currentUser,
         content: encryptedContent,
-        timestamp: new Date().toLocaleTimeString(),
-        isDecrypted: false
+        timestamp: new Date().toISOString(),
+        room_key: secretKey
       };
       
-      // Add message to the room
-      chatRooms[secretKey].push(newMessage);
-      
-      // Update local state
-      setMessages([...chatRooms[secretKey]]);
-      setMessage('');
+      try {
+        // Send message to Supabase
+        const { error } = await supabase.from('messages').insert(newMessage);
+        
+        if (error) {
+          console.error('Error sending message:', error);
+          toast({
+            title: "Message Failed",
+            description: "Could not send your message. Please try again.",
+            variant: "destructive",
+          });
+        } else {
+          setMessage('');
+        }
+      } catch (error) {
+        console.error('Send error:', error);
+        toast({
+          title: "Message Failed",
+          description: "Could not send your message. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -215,7 +318,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
                         encryptedMessage={msg.content}
                         secretKey={secretKey}
                         sender={msg.sender}
-                        timestamp={msg.timestamp}
+                        timestamp={new Date(msg.timestamp).toLocaleTimeString()}
                         isDecrypting={decryptingMessageId === msg.id}
                       />
                       
