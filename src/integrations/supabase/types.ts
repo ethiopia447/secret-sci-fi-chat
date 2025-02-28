@@ -9,7 +9,77 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      messages: {
+        Row: {
+          content: string
+          id: string
+          room_key: string
+          sender: string
+          timestamp: string
+        }
+        Insert: {
+          content: string
+          id?: string
+          room_key: string
+          sender: string
+          timestamp?: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          room_key?: string
+          sender?: string
+          timestamp?: string
+        }
+        Relationships: []
+      }
+      room_users: {
+        Row: {
+          id: string
+          last_active: string
+          room_key: string
+          username: string
+        }
+        Insert: {
+          id?: string
+          last_active?: string
+          room_key: string
+          username: string
+        }
+        Update: {
+          id?: string
+          last_active?: string
+          room_key?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_users_room_key_fkey"
+            columns: ["room_key"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          created_at: string
+          created_by: string
+          key: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          key: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          key?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
