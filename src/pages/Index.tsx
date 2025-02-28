@@ -15,7 +15,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-dark-bg p-4">
       {showChat ? (
-        <ChatInterface />
+        <ChatInterface initialSecretKey={secretKey} />
       ) : (
         <LandingPage onEnterChat={handleEnterChat} />
       )}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Lock, LockOpen } from 'lucide-react';
-import { encryptMessage } from './EncryptionUtils';
+import { MessageCircle, Send, Lock, LockOpen, Users } from 'lucide-react';
+import { encryptMessage, decryptMessage } from './EncryptionUtils';
 import MessageDisplay from './MessageDisplay';
 import NeonButton from './ui-elements/NeonButton';
 import SecretKeyInput from './SecretKeyInput';
@@ -17,55 +17,121 @@ interface Message {
   isDecrypted: boolean;
 }
 
-const ChatInterface: React.FC = () => {
-  const [secretKey, setSecretKey] = useState<string>('');
-  const [hasEnteredKey, setHasEnteredKey] = useState<boolean>(false);
+interface ChatInterfaceProps {
+  initialSecretKey?: string;
+}
+
+// Simulated database of chat rooms
+const chatRooms: Record<string, Message[]> = {};
+
+// Active users in each room
+const activeUsers: Record<string, string[]> = {};
+
+// Generate a random username for this session
+const generateUsername = () => {
+  const prefixes = ['Agent', 'Nexus', 'Cipher', 'Vector', 'Nova', 'Echo', 'Pulse', 'Quantum', 'Delta', 'Shadow'];
+  const suffixes = ['X', 'Z', '7', '9', 'Alpha', 'Prime', 'Zero', 'Omega', 'Phoenix', 'Spectre'];
+  
+  const randomPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+  const randomSuffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+  
+  return `${randomPrefix}_${randomSuffix}`;
+};
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) => {
+  const [secretKey, setSecretKey] = useState<string>(initialSecretKey);
+  const [hasEnteredKey, setHasEnteredKey] = useState<boolean>(!!initialSecretKey);
   const [message, setMessage] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [decryptingMessageId, setDecryptingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [currentUser] = useState<string>(generateUsername());
+  const [usersInRoom, setUsersInRoom] = useState<string[]>([]);
   const { toast } = useToast();
-
-  // Sample usernames for demo
-  const currentUser = "Agent_X";
-  const otherUser = "Nexus_9";
-
+  
+  // Poll for new messages in the room
   useEffect(() => {
-    // Scroll to bottom when messages change
+    if (!secretKey) return;
+    
+    // Initialize room if it doesn't exist
+    if (!chatRooms[secretKey]) {
+      chatRooms[secretKey] = [];
+    }
+    
+    // Add welcome message if room is empty
+    if (chatRooms[secretKey].length === 0) {
+      const welcomeMessage = {
+        id: 'welcome',
+        sender: 'System',
+        content: encryptMessage("Welcome to SecretChat. Communications are encrypted.", secretKey),
+        timestamp: new Date().toLocaleTimeString(),
+        isDecrypted: false
+      };
+      chatRooms[secretKey].push(welcomeMessage);
+    }
+    
+    // Add user to room
+    if (!activeUsers[secretKey]) {
+      activeUsers[secretKey] = [];
+    }
+    
+    if (!activeUsers[secretKey].includes(currentUser)) {
+      activeUsers[secretKey].push(currentUser);
+    }
+    
+    // Update local messages and users
+    setMessages([...chatRooms[secretKey]]);
+    setUsersInRoom([...activeUsers[secretKey]]);
+    
+    // Set up polling interval to check for new messages
+    const interval = setInterval(() => {
+      setMessages([...chatRooms[secretKey]]);
+      setUsersInRoom([...activeUsers[secretKey]]);
+    }, 1000);
+    
+    // Clean up when component unmounts or key changes
+    return () => {
+      clearInterval(interval);
+      
+      // Remove user from room when leaving
+      if (secretKey && activeUsers[secretKey]) {
+        const index = activeUsers[secretKey].indexOf(currentUser);
+        if (index !== -1) {
+          activeUsers[secretKey].splice(index, 1);
+        }
+      }
+    };
+  }, [secretKey, currentUser]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // For demo purposes, add some sample messages
-  useEffect(() => {
-    if (messages.length === 0) {
-      const demoMessages = [
-        {
-          id: '1',
-          sender: otherUser,
-          content: encryptMessage("Welcome to SecretChat. Communications are encrypted.", "demo"),
-          timestamp: new Date(Date.now() - 3600000).toLocaleTimeString(),
-          isDecrypted: false
-        },
-        {
-          id: '2',
-          sender: otherUser,
-          content: encryptMessage("Use the same secret key to decrypt messages.", "demo"),
-          timestamp: new Date(Date.now() - 1800000).toLocaleTimeString(),
-          isDecrypted: false
-        }
-      ];
-      setMessages(demoMessages);
-    }
-  }, []);
 
   const handleKeySubmit = (key: string) => {
     setSecretKey(key);
     setHasEnteredKey(true);
+    
     toast({
       title: "Key Activated",
       description: "Your secret key has been set. You can now send encrypted messages.",
       variant: "default",
     });
+    
+    // Join notification
+    const joinMessage = {
+      id: Date.now().toString(),
+      sender: 'System',
+      content: encryptMessage(`${currentUser} has joined the chat.`, key),
+      timestamp: new Date().toLocaleTimeString(),
+      isDecrypted: false
+    };
+    
+    if (!chatRooms[key]) {
+      chatRooms[key] = [];
+    }
+    
+    chatRooms[key].push(joinMessage);
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -80,7 +146,11 @@ const ChatInterface: React.FC = () => {
         isDecrypted: false
       };
       
-      setMessages([...messages, newMessage]);
+      // Add message to the room
+      chatRooms[secretKey].push(newMessage);
+      
+      // Update local state
+      setMessages([...chatRooms[secretKey]]);
       setMessage('');
     }
   };
@@ -109,19 +179,24 @@ const ChatInterface: React.FC = () => {
           </div>
           <div className="flex items-center">
             {hasEnteredKey ? (
-              <span className="flex items-center text-green-400">
+              <span className="flex items-center text-green-400 mr-4">
                 <LockOpen size={16} className="mr-1" /> Secure Key Active
               </span>
             ) : (
-              <span className="flex items-center text-yellow-400">
+              <span className="flex items-center text-yellow-400 mr-4">
                 <Lock size={16} className="mr-1" /> No Secure Key
+              </span>
+            )}
+            {hasEnteredKey && (
+              <span className="flex items-center text-neon-purple">
+                <Users size={16} className="mr-1" /> {usersInRoom.length} Online
               </span>
             )}
           </div>
         </div>
         
         {!hasEnteredKey ? (
-          <SecretKeyInput onSubmit={handleKeySubmit} buttonText="Activate Key" />
+          <SecretKeyInput onSubmit={handleKeySubmit} buttonText="Activate Key" initialValue={initialSecretKey} />
         ) : (
           <>
             <div className="bg-dark-bg rounded-md p-4 mb-4 h-96 overflow-y-auto">
@@ -160,6 +235,23 @@ const ChatInterface: React.FC = () => {
                 </div>
               )}
             </div>
+            
+            {usersInRoom.length > 0 && (
+              <div className="flex flex-wrap mb-4 gap-2">
+                {usersInRoom.map(user => (
+                  <span 
+                    key={user} 
+                    className={`text-xs px-2 py-1 rounded ${
+                      user === currentUser 
+                        ? 'bg-neon-blue bg-opacity-20 text-neon-blue' 
+                        : 'bg-neon-purple bg-opacity-20 text-neon-purple'
+                    }`}
+                  >
+                    {user}
+                  </span>
+                ))}
+              </div>
+            )}
             
             <form onSubmit={handleSendMessage} className="flex space-x-2">
               <input

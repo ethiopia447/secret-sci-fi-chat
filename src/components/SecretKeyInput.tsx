@@ -1,77 +1,58 @@
 
 import React, { useState } from 'react';
-import { Lock, Key } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import NeonButton from './ui-elements/NeonButton';
-import HolographicCard from './ui-elements/HolographicCard';
 
 interface SecretKeyInputProps {
-  onSubmit: (secretKey: string) => void;
+  onSubmit: (key: string) => void;
   buttonText?: string;
-  placeholder?: string;
+  initialValue?: string;
 }
 
-const SecretKeyInput: React.FC<SecretKeyInputProps> = ({
-  onSubmit,
-  buttonText = "Enter",
-  placeholder = "Enter secret key"
+const SecretKeyInput: React.FC<SecretKeyInputProps> = ({ 
+  onSubmit, 
+  buttonText = "Submit", 
+  initialValue = ""
 }) => {
-  const [secretKey, setSecretKey] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
+  const [key, setKey] = useState<string>(initialValue);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (secretKey.trim()) {
-      onSubmit(secretKey.trim());
+    if (key.trim()) {
+      onSubmit(key.trim());
     }
   };
 
   return (
-    <HolographicCard className="max-w-md w-full mx-auto">
-      <div className="flex items-center justify-center mb-4">
-        <Lock 
-          className={`mr-2 ${isFocused ? 'text-neon-blue' : 'text-neon-purple'}`} 
-          size={24} 
-        />
-        <h2 className={`text-xl font-bold ${isFocused ? 'neon-blue-text' : 'neon-text'}`}>
-          Secure Access
-        </h2>
-      </div>
-      
-      <form onSubmit={handleSubmit}>
-        <div className={`
-          relative flex items-center overflow-hidden rounded-md
-          bg-dark-bg border transition-all duration-300
-          ${isFocused ? 'border-neon-blue shadow-[0_0_10px_rgba(30,174,219,0.3)]' : 'border-neon-purple'}
-        `}>
-          <Key 
-            size={18} 
-            className={`absolute left-3 ${isFocused ? 'text-neon-blue' : 'text-neon-purple'}`} 
-          />
-          
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-dark-bg bg-opacity-80 rounded-lg p-6 border border-neon-purple">
+        <div className="flex items-center mb-4">
+          <Lock className="text-neon-pink mr-2" size={20} />
+          <h2 className="text-xl text-neon-pink">Enter Secret Key</h2>
+        </div>
+        <p className="text-gray-300 mb-6">
+          To join a secure chat room, enter a secret key. Others with the same key can join this encrypted channel.
+        </p>
+        <div className="space-y-4">
           <input
             type="password"
-            value={secretKey}
-            onChange={(e) => setSecretKey(e.target.value)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            className="w-full py-2 pl-10 pr-3 bg-transparent text-white focus:outline-none font-mono"
-            placeholder={placeholder}
-            autoComplete="off"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="Enter your secret key"
+            className="w-full bg-dark-card border border-neon-purple rounded-md px-4 py-3 text-white focus:outline-none focus:border-neon-blue focus:shadow-[0_0_10px_rgba(30,174,219,0.3)] transition-all duration-300"
           />
+          <div className="flex justify-end">
+            <NeonButton 
+              type="submit" 
+              disabled={!key.trim()}
+              className="w-full sm:w-auto"
+            >
+              {buttonText}
+            </NeonButton>
+          </div>
         </div>
-        
-        <div className="mt-4 flex justify-center">
-          <NeonButton 
-            type="submit" 
-            variant={isFocused ? "blue" : "purple"}
-            disabled={!secretKey.trim()}
-            className="w-full"
-          >
-            {buttonText}
-          </NeonButton>
-        </div>
-      </form>
-    </HolographicCard>
+      </div>
+    </form>
   );
 };
 
