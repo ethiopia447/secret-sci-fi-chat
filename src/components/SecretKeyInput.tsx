@@ -7,12 +7,14 @@ interface SecretKeyInputProps {
   onSubmit: (key: string) => void;
   buttonText?: string;
   initialValue?: string;
+  placeholder?: string;
 }
 
 const SecretKeyInput: React.FC<SecretKeyInputProps> = ({ 
   onSubmit, 
   buttonText = "Submit", 
-  initialValue = ""
+  initialValue = "",
+  placeholder = "Enter your secret key"
 }) => {
   const [key, setKey] = useState<string>(initialValue);
 
@@ -38,7 +40,7 @@ const SecretKeyInput: React.FC<SecretKeyInputProps> = ({
             type="password"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="Enter your secret key"
+            placeholder={placeholder}
             className="w-full bg-dark-card border border-neon-purple rounded-md px-4 py-3 text-white focus:outline-none focus:border-neon-blue focus:shadow-[0_0_10px_rgba(30,174,219,0.3)] transition-all duration-300"
           />
           <div className="flex justify-end">
