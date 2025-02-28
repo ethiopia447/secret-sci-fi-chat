@@ -42,11 +42,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentUser] = useState<string>(generateUsername());
   const [usersInRoom, setUsersInRoom] = useState<string[]>([]);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(true);
   const { toast } = useToast();
+  
+  // Check if Supabase is properly configured on component mount
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      try {
+        // Try a simple query to check connection
+        const { error } = await supabase.from('messages').select('count', { count: 'exact', head: true });
+        
+        if (error && (error.message.includes('Failed to fetch') || error.message.includes('Network error'))) {
+          setSupabaseConnected(false);
+          toast({
+            title: "Connection Issue",
+            description: "Could not connect to the database. Using local mode only.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Supabase connection check failed:', error);
+        setSupabaseConnected(false);
+        toast({
+          title: "Connection Issue",
+          description: "Could not connect to the database. Using local mode only.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    checkSupabaseConnection();
+  }, [toast]);
   
   // Setup Supabase subscription when secret key changes
   useEffect(() => {
-    if (!secretKey) return;
+    if (!secretKey || !supabaseConnected) return;
     
     // First, fetch existing messages for this room
     const fetchMessages = async () => {
@@ -203,7 +233,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
       
       removeUser();
     };
-  }, [secretKey, currentUser, toast]);
+  }, [secretKey, currentUser, toast, supabaseConnected]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -233,27 +263,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
         room_key: secretKey
       };
       
-      try {
-        // Send message to Supabase
-        const { error } = await supabase.from('messages').insert(newMessage);
-        
-        if (error) {
-          console.error('Error sending message:', error);
+      if (supabaseConnected) {
+        try {
+          // Send message to Supabase
+          const { error } = await supabase.from('messages').insert(newMessage);
+          
+          if (error) {
+            console.error('Error sending message:', error);
+            toast({
+              title: "Message Failed",
+              description: "Could not send your message. Please try again.",
+              variant: "destructive",
+            });
+          } else {
+            setMessage('');
+          }
+        } catch (error) {
+          console.error('Send error:', error);
           toast({
             title: "Message Failed",
             description: "Could not send your message. Please try again.",
             variant: "destructive",
           });
-        } else {
-          setMessage('');
         }
-      } catch (error) {
-        console.error('Send error:', error);
-        toast({
-          title: "Message Failed",
-          description: "Could not send your message. Please try again.",
-          variant: "destructive",
-        });
+      } else {
+        // If Supabase is not connected, just add to local state
+        setMessages(prev => [...prev, {...newMessage, isDecrypted: false}]);
+        setMessage('');
       }
     }
   };
@@ -297,6 +333,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
             )}
           </div>
         </div>
+        
+        {!supabaseConnected && (
+          <div className="bg-red-900 bg-opacity-30 text-red-300 p-2 mb-4 rounded border border-red-600">
+            <p className="text-sm">
+              ⚠️ Database connection issue. Running in local mode only. Messages won't be saved or shared with others.
+            </p>
+          </div>
+        )}
         
         {!hasEnteredKey ? (
           <SecretKeyInput onSubmit={handleKeySubmit} buttonText="Activate Key" initialValue={initialSecretKey} />
