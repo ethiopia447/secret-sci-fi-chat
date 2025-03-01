@@ -95,7 +95,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
             variant: "destructive",
           });
         } else {
-          setMessages(data || []);
+          // Initialize messages with isDecrypted flag
+          const formattedMessages = data?.map(msg => ({
+            ...msg,
+            isDecrypted: false
+          })) || [];
+          setMessages(formattedMessages);
         }
       } catch (error) {
         console.error('Fetch error:', error);
@@ -113,8 +118,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ initialSecretKey = '' }) 
         table: 'messages',
         filter: `room_key=eq.${secretKey}`,
       }, (payload) => {
-        // Add new message to state
-        setMessages(prevMessages => [...prevMessages, payload.new as Message]);
+        // Add new message to state with isDecrypted flag
+        const newMessage = {
+          ...payload.new as Message,
+          isDecrypted: false
+        };
+        setMessages(prevMessages => [...prevMessages, newMessage]);
+        console.log('New message received:', newMessage);
       })
       .subscribe();
     

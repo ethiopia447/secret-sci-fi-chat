@@ -6,4 +6,35 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://etkizhbvusbnqk
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0a2l6aGJ2dXNibnFrem1uZ2JpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA3MzE1NTAsImV4cCI6MjA1NjMwNzU1MH0.3EODfROW5Y5Fj6In4xOKODD04XTE0Q6_xbyItz9I69A';
 
 // Create a single supabase client for interacting with your database
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+});
+
+// Enable realtime subscriptions on the messages table
+const enableRealtime = async () => {
+  try {
+    await supabase.rpc('graphql', {
+      query: `
+        subscription {
+          realtime {
+            messages {
+              id
+              sender
+              content
+              timestamp
+              room_key
+            }
+          }
+        }
+      `
+    });
+  } catch (error) {
+    console.error('Error enabling realtime subscriptions:', error);
+  }
+};
+
+enableRealtime();
