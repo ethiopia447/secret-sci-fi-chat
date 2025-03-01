@@ -40,7 +40,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
       // Decrypt the message
       const decryptedText = decryptMessage(encryptedMessage, secretKey);
       
-      // Simulate the visual decryption process
+      // Simulate the visual decryption process - increased from 3000 to 6000 ms
       simulateDecryption(
         (progress, currentText) => {
           setDecryptionProgress(progress);
@@ -52,7 +52,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
           }
         },
         decryptedText,
-        3000
+        6000 // Increased duration from 3000ms to 6000ms
       );
     }
   }, [isDecrypting, encryptedMessage, secretKey, isDecryptionInProgress, isDecrypted]);

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Lock, MessageCircle, Shield } from 'lucide-react';
+import { Lock, MessageCircle, Shield, MessageSquare } from 'lucide-react';
 import NeonButton from './ui-elements/NeonButton';
 import HolographicCard from './ui-elements/HolographicCard';
 import GlitchText from './ui-elements/GlitchText';
@@ -74,9 +74,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat }) => {
               <span className="neon-text">Secret</span>
               <span className="neon-blue-text">Chat</span>
             </h1>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              Encrypted communication with dramatic decryption animations. 
-              Use the same secret key to encrypt and decrypt messages.
+            <p className="text-gray-400 max-w-lg mx-auto neon-pink-text">
+              Welcome to Natnael website
             </p>
           </div>
           
@@ -128,8 +127,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterChat }) => {
           </div>
           
           {/* Footer */}
-          <div className="text-center text-gray-500 text-sm">
+          <div className="text-center text-gray-500 text-sm mb-4">
             <p className="animate-flicker">⚠️ SecretChat is for demonstration purposes only ⚠️</p>
+          </div>
+          
+          {/* Attribution */}
+          <div className="text-center border-t border-gray-700 pt-4 mt-8">
+            <p className="flex items-center justify-center gap-2 text-gray-400">
+              Created by Natnael | Contact 
+              <a href="https://t.me/natiy212" className="flex items-center text-neon-blue hover:text-neon-purple transition-colors">
+                @natiy212 on Telegram
+                <MessageSquare size={16} className="ml-1" />
+              </a>
+            </p>
           </div>
         </div>
       )}
