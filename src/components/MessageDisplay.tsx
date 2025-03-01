@@ -23,6 +23,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   const [decryptionProgress, setDecryptionProgress] = useState<number>(0);
   const [isDecrypted, setIsDecrypted] = useState<boolean>(false);
   const [isDecryptionInProgress, setIsDecryptionInProgress] = useState<boolean>(false);
+  const [finalDecryptedMessage, setFinalDecryptedMessage] = useState<string>('');
 
   useEffect(() => {
     // Reset state when a new message is received
@@ -30,6 +31,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
       setDisplayText('');
       setDecryptionProgress(0);
       setIsDecrypted(false);
+      setFinalDecryptedMessage('');
     }
   }, [encryptedMessage]);
 
@@ -39,6 +41,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
       
       // Decrypt the message
       const decryptedText = decryptMessage(encryptedMessage, secretKey);
+      setFinalDecryptedMessage(decryptedText); // Store the final decrypted message
       
       // Simulate the visual decryption process - increased from 3000 to 6000 ms
       simulateDecryption(
@@ -57,9 +60,9 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
     }
   }, [isDecrypting, encryptedMessage, secretKey, isDecryptionInProgress, isDecrypted]);
 
-  // Display encrypted text if not decrypting
+  // Get the appropriate message text to display
   const messageText = isDecrypting 
-    ? displayText 
+    ? (isDecrypted ? finalDecryptedMessage : displayText)
     : encryptedMessage.substring(0, 40) + (encryptedMessage.length > 40 ? '...' : '');
 
   return (
@@ -81,14 +84,14 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
               Decrypting: {Math.round(decryptionProgress * 100)}%
             </div>
             <GlitchText 
-              text={messageText}
+              text={displayText}
               active={decryptionProgress < 0.9}
               className={decryptionProgress >= 0.9 ? "text-neon-pink" : ""}
             />
           </div>
         ) : (
           <div className={`w-full ${isDecrypted ? "text-white" : "text-gray-500 font-mono"}`}>
-            {isDecrypted ? messageText : (
+            {isDecrypted ? finalDecryptedMessage : (
               <>
                 <span className="text-neon-pink">[ENCRYPTED]</span> {messageText}
               </>
